@@ -1,20 +1,9 @@
 import * as admin from "firebase-admin";
-import * as fs from "fs";
-import * as path from "path";
+import { initCredentials } from "./credentials";
 
 if (!admin.apps.length) {
   try {
-    let serviceAccount: any = null;
-
-    // Resolve path relative to process.cwd() (project root)
-    const keyPath = path.resolve(process.cwd(), "service-account-key.json");
-
-    if (fs.existsSync(keyPath)) {
-      const keyFile = fs.readFileSync(keyPath, "utf8");
-      serviceAccount = JSON.parse(keyFile);
-    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    }
+    const serviceAccount = initCredentials();
 
     if (serviceAccount) {
       admin.initializeApp({

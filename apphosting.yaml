@@ -1,0 +1,68 @@
+# Firebase App Hosting Configuration File
+# See https://firebase.google.com/docs/app-hosting/configure for details.
+
+# Set the schema version
+specVersion: v1beta1
+
+# Compute settings
+runConfig:
+  minInstances: 0
+  maxInstances: 3
+  memoryMiB: 512
+  cpu: 1
+
+# Environment Variables
+env:
+  # Firebase Client Configuration (Available during both Build and Runtime)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyABSruU44fQqqPw9KwCFC-NQI3fSVOAILE"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "kitchen-ai-app-ce56c.firebaseapp.com"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "kitchen-ai-app-ce56c"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "kitchen-ai-app-ce56c.appspot.com"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "269849532465"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:269849532465:web:aa29e79bf88a3d37bcdd10"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Vertex AI Configuration (Needed at Runtime)
+  - variable: VERTEX_AI_PROJECT_ID
+    value: "kitchen-ai-app-ce56c"
+    availability:
+      - RUNTIME
+
+  - variable: VERTEX_AI_LOCATION
+    value: "us-central1"
+    availability:
+      - RUNTIME
+
+  # Secure Service Account JSON String (Bound to GCP Secret Manager at Runtime)
+  - variable: FIREBASE_SERVICE_ACCOUNT_KEY
+    secret: FIREBASE_SERVICE_ACCOUNT_KEY
+    availability:
+      - RUNTIME

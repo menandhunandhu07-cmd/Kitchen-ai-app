@@ -67,22 +67,28 @@ const FALLBACK_RECIPES: Record<string, any> = {
   }
 };
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const filterString = searchParams.get("filters") || "";
-    const filters = filterString.split(",").filter(Boolean);
-
-    // 1. Fetch pantry items
-    let pantryItems = [];
+    let body: any = {};
     try {
-      const snapshot = await adminDb.collection("pantry").get();
-      pantryItems = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as any[];
-    } catch (e) {
-      console.warn("Could not query Firestore pantry, using mock items.", e);
+      body = await request.json();
+    } catch (e) {}
+
+    const { pantry: requestPantry, filters = [] } = body;
+
+    // 1. Resolve pantry items (prefer request payload, fall back to Firestore, then local mock)
+    let pantryItems = requestPantry || [];
+    
+    if (pantryItems.length === 0) {
+      try {
+        const snapshot = await adminDb.collection("pantry").get();
+        pantryItems = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as any[];
+      } catch (e) {
+        console.warn("Could not query Firestore pantry, using mock items.", e);
+      }
     }
 
     if (pantryItems.length === 0) {
@@ -90,16 +96,16 @@ export async function GET(request: Request) {
     }
 
     // 2. Filter ingredients for Vertex AI prompt context
-    const freshIngredients = pantryItems.filter((i) => i.freshness === "fresh");
-    const expiringIngredients = pantryItems.filter((i) => i.freshness === "expiring");
-    const expiredIngredients = pantryItems.filter((i) => i.freshness === "expired");
+    const freshIngredients = pantryItems.filter((i: any) => i.freshness === "fresh");
+    const expiringIngredients = pantryItems.filter((i: any) => i.freshness === "expiring");
+    const expiredIngredients = pantryItems.filter((i: any) => i.freshness === "expired");
 
     const pantryDesc = [
-      ...freshIngredients.map((i) => `${i.name} (${i.quantity}) [Fresh]`),
-      ...expiringIngredients.map((i) => `${i.name} (${i.quantity}) [Expiring Soon! Use this first]`),
+      ...freshIngredients.map((i: any) => `${i.name} (${i.quantity}) [Fresh]`),
+      ...expiringIngredients.map((i: any) => `${i.name} (${i.quantity}) [Expiring Soon! Use this first]`),
     ].join(", ");
 
-    const expiredDesc = expiredIngredients.map((i) => i.name).join(", ");
+    const expiredDesc = expiredIngredients.map((i: any) => i.name).join(", ");
 
     // 3. Build Prompt
     const prompt = `You are a professional Michelin-star culinary chef AI.
@@ -115,12 +121,12 @@ DIETARY / TIME FILTERS ACTIVE:
 ${filters.length > 0 ? filters.join(", ") : "None. Suggest any optimal recipe."}
 
 INSTRUCTIONS:
-1. Make sure the recipe relies as much as possible on the available pantry items, especially items marked as [Expiring Soon!].
+1. Make sure the recipe relies as much as possible on the available pantry items, especially items marked as [Expiring Soon].
 2. Provide a realistic prep/cook time, calorie count, protein, and carbs value.
 3. The tags array should represent diet and style (e.g. "Vegetarian", "High Protein", "Quick", "Low Carb").
 4. Provide logical, step-by-step preparation steps. Each step must have a unique sequential id (e.g. "s1", "s2", "s3") and a description.
 5. If a step involves a countdown timer (e.g. simmering, baking, boiling), include "timerMinutes" as an integer representing the duration.
-6. For the "image" field, select a high-quality Unsplash food image URL related to the recipe. Use a standard format like "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600&auto=format&fit=crop" or another high-quality food image.
+6. For the "image" field, select a high-quality Unsplash food image URL related to the recipe. Use a standard format like "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600&auto=format&fit=crop".
 7. Return a single JSON object matching the requested schema. Do not output any codeblock formatting or introductory text, just the raw JSON.`;
 
     // 4. Call Vertex AI
@@ -178,10 +184,13 @@ INSTRUCTIONS:
     } catch (aiError) {
       console.error("Vertex AI Recipe generation failed. Falling back to local recipes.", aiError);
       
-      // Select appropriate fallback recipe based on filters
-      if (filters.includes("veg") || filters.includes("Vegetarian")) {
+      // Select fallback recipe based on active filters
+      const isVeg = filters.some((f: string) => f.toLowerCase().includes("veg"));
+      const hasChicken = pantryItems.some((i: any) => i.name.toLowerCase().includes("chicken"));
+
+      if (isVeg) {
         recipeData = FALLBACK_RECIPES.veg;
-      } else if (pantryItems.some(i => i.name.toLowerCase().includes("chicken"))) {
+      } else if (hasChicken) {
         recipeData = FALLBACK_RECIPES.chicken;
       } else {
         recipeData = FALLBACK_RECIPES.default;
@@ -199,7 +208,7 @@ INSTRUCTIONS:
         });
         recipeData.id = recipeRef.id;
       } catch (firestoreError) {
-        console.warn("Could not save matched recipe to Firestore:", firestoreError);
+        console.warn("Could not save matched recipe to Firestore (skipping):", firestoreError);
         if (!recipeData.id) {
           recipeData.id = "local-" + Math.random().toString(36).substr(2, 9);
         }

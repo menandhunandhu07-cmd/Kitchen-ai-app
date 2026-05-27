@@ -26,18 +26,21 @@ export async function POST(request: Request) {
       body = await request.json();
     } catch (e) {}
 
-    const { query = "", recipe = null } = body;
+    const { query = "", recipe = null, pantry: requestPantry } = body;
 
-    // 1. Fetch pantry items from Firestore
-    let pantryItems = [];
-    try {
-      const snapshot = await adminDb.collection("pantry").get();
-      pantryItems = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as any[];
-    } catch (e) {
-      console.warn("Could not query Firestore pantry, using mock items.", e);
+    // 1. Resolve pantry items (prefer request payload, fall back to Firestore, then local mock)
+    let pantryItems = requestPantry || [];
+    
+    if (pantryItems.length === 0) {
+      try {
+        const snapshot = await adminDb.collection("pantry").get();
+        pantryItems = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as any[];
+      } catch (e) {
+        console.warn("Could not query Firestore pantry, using mock items.", e);
+      }
     }
 
     if (pantryItems.length === 0) {
@@ -45,14 +48,14 @@ export async function POST(request: Request) {
     }
 
     // 2. Format pantry items for prompt
-    const freshAndExpiring = pantryItems.filter((i) => i.freshness !== "expired");
-    const expired = pantryItems.filter((i) => i.freshness === "expired");
+    const freshAndExpiring = pantryItems.filter((i: any) => i.freshness !== "expired");
+    const expired = pantryItems.filter((i: any) => i.freshness === "expired");
 
     const pantryDesc = freshAndExpiring
-      .map((i) => `${i.name} (${i.quantity})${i.freshness === "expiring" ? " [Expiring]" : ""}`)
+      .map((i: any) => `${i.name} (${i.quantity})${i.freshness === "expiring" ? " [Expiring]" : ""}`)
       .join(", ");
 
-    const expiredDesc = expired.map((i) => i.name).join(", ");
+    const expiredDesc = expired.map((i: any) => i.name).join(", ");
 
     // 3. Build Prompt
     const prompt = `You are a helpful AI culinary assistant.
